@@ -368,10 +368,9 @@ func NewProxy(p int, s Sniffer) *Proxy {
 
 func (p *Proxy) Start() {
 
-	tcpAddr := net.TCPAddr{IP: []byte{127, 0, 0, 1}, Port: p.port}
-
+	//Listen on all available interfaces to allow remote access
 	fmt.Println("Webproxy start listening... Port =", p.port)
-	l, err := net.ListenTCP("tcp", &tcpAddr)
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", p.port))
 	defer l.Close()
 	if err != nil {
 		fmt.Println(err)

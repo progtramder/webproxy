@@ -124,17 +124,6 @@ func createCertForHost(host string) (tls.Certificate, error) {
 		return tls.Certificate{}, err
 	}
 
-	/*certOut := newBuffer()
-	keyOut  := newBuffer()
-
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(private)})
-
-	cert, err := tls.X509KeyPair(certOut.getContent(), keyOut.getContent())
-	if err != nil {
-		return tls.Certificate{}, err
-	}*/
-
 	cert := tls.Certificate{}
 	cert.Certificate = append(cert.Certificate, derBytes)
 	cert.PrivateKey  = private

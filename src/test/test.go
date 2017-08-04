@@ -7,8 +7,8 @@
 package main
 
 import (
-	"webproxy"
 	"fmt"
+	"core"
 )
 
 type TestSniffer struct {
