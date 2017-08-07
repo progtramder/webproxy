@@ -14,17 +14,17 @@ import (
 	"net/http"
 	"bufio"
 	"strings"
-	"errors"
 	"crypto/tls"
+	"io/ioutil"
 )
 
 type Session struct {
-	request   *http.Request
-	response  *http.Response
-	conClient net.Conn
-	conServer net.Conn
-	requestContent  *buffer
-	responseContent *buffer
+	request      *http.Request
+	response     *http.Response
+	conClient    net.Conn
+	conServer    net.Conn
+	requestBody  *body
+	responseBody *body
 }
 
 type Proxy struct {
@@ -78,11 +78,6 @@ func (session *Session) close() {
 	if session.conClient != nil {
 		session.conClient.Close()
 	}
-
-	session.request         = nil
-	session.response        = nil
-	session.requestContent  = nil
-	session.responseContent = nil
 }
 
 func (session *Session) readRequest() (err error) {
@@ -96,17 +91,8 @@ func (session *Session) readRequest() (err error) {
 //Send request to server and get a response
 func (session *Session) doRequest() error {
 
-	if session.request == nil {
-		return errors.New("No request is available.")
-	}
-
 	//Transfer request to remote server
-	var err error
-	if session.requestContent != nil {
-		_, err = session.requestContent.flush(session.conServer)
-	} else {
-		err = session.request.Write(session.conServer)
-	}
+	err := session.request.Write(session.conServer)
 
 	if err != nil {
 		return err
@@ -121,18 +107,7 @@ func (session *Session) doRequest() error {
 //Flush the response to client
 func (session *Session) doResponse() error {
 
-	if session.response == nil {
-		return errors.New("No response is available.")
-	}
-
-	var err error
-	if session.responseContent != nil {
-		_, err = session.responseContent.flush(session.conClient)
-	} else {
-		err = session.response.Write(session.conClient)
-	}
-
-	return err
+	return session.response.Write(session.conClient)
 }
 
 //This function run in a infinite loop until nothing to flush when timeout
@@ -215,26 +190,8 @@ func (session *Session) handleSession(p *Proxy) {
 	}
 	session.doResponse()
 
-	session.requestContent = nil
-	session.responseContent = nil
-}
-
-func (session *Session) keepAlive() bool {
-
-	header := session.GetRequestHead()
-	if header == nil {
-		return false
-	}
-
-	//We only check keep-alive flag on client side
-	for k, v := range header {
-		if strings.Contains(k, "Connection") &&
-			v != nil && strings.Contains(v[0], "keep-alive") {
-			return true
-		}
-	}
-
-	return false
+	session.requestBody  = nil
+	session.responseBody = nil
 }
 
 func (session *Session) GetHost() string {
@@ -243,22 +200,6 @@ func (session *Session) GetHost() string {
 		return ""
 	}
 	return session.request.Host
-}
-
-func (session *Session) GetRequestLength() int64 {
-
-	if session.request == nil {
-		return 0
-	}
-	return session.request.ContentLength
-}
-
-func (session *Session) GetResponseLength() int64 {
-
-	if session.response == nil {
-		return 0
-	}
-	return session.response.ContentLength
 }
 
 func (session *Session) GetRequestHead() http.Header {
@@ -317,49 +258,101 @@ func (session *Session) GetRequestURL() string {
 	return session.request.URL.String()
 }
 
-func (session *Session) GetRequestContent() []byte {
-	if session.request == nil {
-		return nil
+func (session *Session) GetRequestBody() string {
+
+	if session.request.ContentLength == 0 {
+		return ""
 	}
 
-	if session.requestContent == nil {
-		session.requestContent = newBuffer()
-		session.request.Write(session.requestContent)
+	if session.requestBody == nil {
+		buf, _ := ioutil.ReadAll(session.request.Body)
+		session.requestBody = newBody(buf)
+		session.request.Body = session.requestBody
 	}
 
-	return session.requestContent.getContent()
+	return string(session.requestBody.getContent())
+}
+
+func (session *Session) SetRequestBody(body string) {
+
+	if len(body) > 0 && session.requestBody != nil {
+		buf := []byte(body)
+		session.requestBody.setContent(buf)
+
+		//If ContentLength < 0, maybe chuncked body, Content-Length field
+		//will not  be included in header, so we ignore it
+		if session.request.ContentLength >= 0 {
+			session.request.ContentLength = int64(len(buf))
+		}
+	}
 }
 
 //Call this func if it is really necessary, because of memory
 //consuming for large response
-func (session *Session) GetResponseContent() []byte {
+func (session *Session) GetResponseBody() string {
 
-	if session.response == nil {
-		return nil
+	if session.response.ContentLength == 0 {
+		return ""
 	}
 
-	if session.responseContent == nil {
-		session.responseContent = newBuffer()
-		session.response.Write(session.responseContent)
+	if session.responseBody == nil {
+		buf, _ := ioutil.ReadAll(session.response.Body)
+		session.responseBody = newBody(buf)
+		session.response.Body = session.responseBody
 	}
 
-	return session.responseContent.getContent()
+	return string(session.responseBody.getContent())
+}
+
+func (session *Session) SetResponseBody(body string) {
+
+	if len(body) > 0 && session.responseBody != nil {
+
+		buf := []byte(body)
+		session.responseBody.setContent(buf)
+
+		//If ContentLength < 0, maybe chuncked body, Content-Length field
+		//will not  be included in header, so we ignore it
+		if session.response.ContentLength >= 0 {
+			session.response.ContentLength = int64(len(buf))
+		}
+	}
+}
+
+func (session *Session) GetRequestEncoding() string {
+
+	if session.request != nil {
+		encoding := session.request.Header["Content-Encoding"]
+		if encoding != nil {
+			return encoding[0]
+		}
+	}
+
+	return ""
+}
+
+func (session *Session) GetResponseEncoding() string {
+
+	if session.response != nil {
+		encoding := session.response.Header["Content-Encoding"]
+		if encoding != nil {
+			return encoding[0]
+		}
+	}
+
+	return ""
 }
 
 func (session *Session) GetResponseType() string {
 
-	contentType := ""
-	if session.response != nil {
-
-		ct := session.response.Header["Content-Type"]
-		if ct != nil {
-			for _, v := range ct {
-				contentType += v
-			}
+	if session.request != nil {
+		types := session.response.Header["Content-Type"]
+		if types != nil {
+			return types[0]
 		}
 	}
 
-	return contentType
+	return ""
 }
 
 func NewProxy(p int, s Sniffer) *Proxy {
@@ -371,7 +364,6 @@ func (p *Proxy) Start() {
 	//Listen on all available interfaces to allow remote access
 	fmt.Println("Webproxy start listening... Port =", p.port)
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", p.port))
-	defer l.Close()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -385,4 +377,6 @@ func (p *Proxy) Start() {
 			go session.run(p)
 		}
 	}
+
+	l.Close()
 }
