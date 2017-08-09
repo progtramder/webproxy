@@ -42,9 +42,3 @@ func (this *body) setContent(buf []byte) {
 	this.bf = buf
 	this.N  = 0
 }
-
-type buffer struct {
-	B []byte
-	N int
-}
-
