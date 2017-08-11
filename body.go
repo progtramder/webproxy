@@ -8,23 +8,23 @@ package webproxy
 import "io"
 
 type body struct {
-	bf     []byte
-	N      int
+	b      []byte
+	n      int
 	closed bool
 }
 
 func newBody(buf []byte) *body {
-	return &body{bf : buf}
+	return &body{b : buf}
 }
 
 func (this *body) Read(p []byte) (int, error) {
 
-	if this.N >= len(this.bf) || this.closed == true {
+	if this.n >= len(this.b) || this.closed == true {
 		return 0, io.EOF
 	}
 
-	n := copy(p, this.bf[this.N : ])
-	this.N += n
+	n := copy(p, this.b[this.n : ])
+	this.n += n
 
 	return n, nil
 }
@@ -35,10 +35,10 @@ func (this *body) Close() error {
 }
 
 func (this *body) getContent() []byte {
-	return this.bf
+	return this.b
 }
 
 func (this *body) setContent(buf []byte) {
-	this.bf = buf
-	this.N  = 0
+	this.b = buf
+	this.n  = 0
 }
