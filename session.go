@@ -41,9 +41,6 @@ func (this *Session)SetLocalData(data interface{}) {
 // This is a go routine
 func (this *Session) run(p *Proxy) {
 
-	//aquireThread()
-	//defer releaseThread()
-
 	defer this.close()
 
 	// Read request from client
@@ -140,17 +137,15 @@ func (this *Session) doTransfer()  {
 	go flush(this.conServer, this.conClient, sChan)
 
 	select {
-	case <- cChan :
-		break
-	case <- sChan :
-		break
+	case <- cChan : break
+	case <- sChan : break
 	}
 }
 
 func (this *Session) handleTLSSession(p *Proxy) {
 
 	//Tell the client TLS connection has been established
-	//fmt.Println("Tunnel to :", session.GetHost())
+	//fmt.Println("Tunnel to :", this.GetHost())
 	_, err := this.conClient.Write([]byte("HTTP/1.0 200 Connection Established\r\n\r\n"))
 	if err != nil {
 		return
