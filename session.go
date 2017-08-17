@@ -17,7 +17,7 @@ import (
 )
 
 type Session struct {
-	localdata    interface{}
+	sessionData  interface{}
 	requestBody  *body
 	responseBody *body
 	conClient    net.Conn
@@ -26,16 +26,16 @@ type Session struct {
 	response     *http.Response
 }
 
-func newSession(conn net.Conn) *Session {
+func NewSession(conn net.Conn) *Session {
 	return &Session{conClient : conn}
 }
 
 func (this *Session)GetLocalData() interface{} {
-	return this.localdata
+	return this.sessionData
 }
 
 func (this *Session)SetLocalData(data interface{}) {
-	this.localdata = data
+	this.sessionData = data
 }
 
 // This is a go routine
@@ -112,23 +112,39 @@ func (this *Session) doResponse() error {
 	return this.response.Write(this.conClient)
 }
 
-//This function run in a infinite loop until nothing to flush when timeout
-func flush(r, w net.Conn, timeout time.Duration) int {
+//flush function run in a infinite loop until an error occur
+func flush(r, w net.Conn, c chan<- error) {
 
 	buf := make([]byte, 4096)
-	var count, n = 0, 0
 	for {
-		r.SetReadDeadline(time.Now().Add(timeout))
-		n, _ = r.Read(buf)
+		n, err := r.Read(buf)
 		if n > 0 {
 			w.Write(buf[0: n])
-			count += n
-		} else {
+		}
+		if err != nil {
+			c <- err
 			break
 		}
 	}
 
-	return count
+	close(c)
+}
+
+//doTransfer start two go routines to transfer data between client and server
+func (this *Session) doTransfer()  {
+
+	cChan := make(chan error, 1)
+	sChan := make(chan error, 1)
+
+	go flush(this.conClient, this.conServer, cChan)
+	go flush(this.conServer, this.conClient, sChan)
+
+	select {
+	case <- cChan :
+		break
+	case <- sChan :
+		break
+	}
 }
 
 func (this *Session) handleTLSSession(p *Proxy) {
@@ -142,19 +158,10 @@ func (this *Session) handleTLSSession(p *Proxy) {
 
 	//If cert file is not provided, we do nothing but transfer the data
 	//between client and remote server
-	if err = loadRootCert(); err != nil {
-		for {
-			//Start transfer the binary stream between client and server
-			n := flush(this.conClient, this.conServer, time.Millisecond*200)
-			if n <= 0 {
-				break
-			}
-
-			flush(this.conServer, this.conClient, time.Millisecond*600)
-		}
-
+	//if err = loadRootCert(); err != nil {
+		this.doTransfer()
 		return
-	}
+	//}
 
 	//Starting decrypt the TLS session
 	config := &tls.Config{}

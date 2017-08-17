@@ -35,7 +35,7 @@ func (this *Proxy) Start() {
 		conn, _ := l.Accept()
 		if conn != nil {
 			//incoming connection, start a session
-			session := newSession(conn)
+			session := NewSession(conn)
 			go session.run(this)
 		}
 	}
