@@ -158,10 +158,10 @@ func (this *Session) handleTLSSession(p *Proxy) {
 
 	//If cert file is not provided, we do nothing but transfer the data
 	//between client and remote server
-	//if err = loadRootCert(); err != nil {
+	if err = loadRootCert(); err != nil {
 		this.doTransfer()
 		return
-	//}
+	}
 
 	//Starting decrypt the TLS session
 	config := &tls.Config{}
