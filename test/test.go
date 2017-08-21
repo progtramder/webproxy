@@ -37,6 +37,7 @@ func (TestSniffer) BeforeResponse(s *webproxy.Session) {
 }
 
 func main() {
+	fmt.Println("Webproxy start listening... Port = 9999")
 	proxy := webproxy.NewProxy(9999, TestSniffer{})
 	proxy.Start()
 }

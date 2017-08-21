@@ -7,9 +7,9 @@
 package webproxy
 
 import (
-	"fmt"
 	"os"
 	"net"
+	"fmt"
 )
 
 type Proxy struct {
@@ -24,7 +24,6 @@ func NewProxy(p int, s Sniffer) *Proxy {
 func (this *Proxy) Start() {
 
 	//Listen on all available interfaces to allow remote access
-	fmt.Println("Webproxy start listening... Port =", this.port)
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", this.port))
 	if err != nil {
 		fmt.Println(err)
