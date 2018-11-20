@@ -270,6 +270,7 @@ func (this *Session) GetRequestBody() string {
 	if this.requestBody == nil {
 		buf, _ := ioutil.ReadAll(this.request.Body)
 		this.requestBody = newBody(buf)
+		this.request.Body.Close()
 		this.request.Body = this.requestBody
 	}
 
@@ -301,6 +302,7 @@ func (this *Session) GetResponseBody() string {
 	if this.responseBody == nil {
 		buf, _ := ioutil.ReadAll(this.response.Body)
 		this.responseBody = newBody(buf)
+		this.response.Body.Close()
 		this.response.Body = this.responseBody
 	}
 
